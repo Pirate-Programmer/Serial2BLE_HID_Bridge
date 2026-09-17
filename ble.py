@@ -6,6 +6,7 @@
 from hid_services import Keyboard
 import time
 
+#keycodes mentioned at https://www.usb.org/sites/default/files/hut1_7.pdf  (under Keyboard/Keypad Page)
 KEYCODES = {
     # Letters
     "a": (0, 0x04), "b": (0, 0x05), "c": (0, 0x06),
@@ -77,14 +78,18 @@ class BLE_MODULE:
     def __init__(self):
         
         #my ble hid
-        self.keyboard = Keyboard("Ear Buds")
-        self.keyboard.device_appearance = 961                                                   #961 = keyboard (org.bluetooth.characteristic.gap.appearance.xml)
+        self.keyboard = Keyboard("Keyboard")
+        #961 = keyboard (org.bluetooth.characteristic.gap.appearance.xml)
+        self.keyboard.device_appearance = 961                                                   
 
         self.keyboard.set_bonding(False)
         self.keyboard.set_le_secure(False)
-        self.keyboard.set_state_change_callback(self.keyboard_state_callback)                   #callback fn called by the lib when state change
 
-        self.keyboard.start()                                                                   #overwrite this implementation for changing advertisment characteristics
+        #callback fn called by the lib when state change
+        self.keyboard.set_state_change_callback(self.keyboard_state_callback)                   
+
+        #overwrite this implementation for changing advertisment characteristics
+        self.keyboard.start()                                                                   
         
         
     def keyboard_state_callback(self):
@@ -102,9 +107,10 @@ class BLE_MODULE:
     def start(self):
         while True:
 
+            #start ble advertisment  with timeout 30s
             if self.keyboard.get_state() is Keyboard.DEVICE_IDLE:           
-                self.keyboard.start_advertising()                                               #start ble advertisment
-                timeout = 30                                                                          #intiate connection timeout 30s
+                self.keyboard.start_advertising()                                               
+                timeout = 30                                                                         
                 while timeout > 0:
                     state = self.keyboard.get_state()
 
@@ -118,12 +124,14 @@ class BLE_MODULE:
                     time.sleep(1)
                     timeout -= 1
 
-                if self.keyboard.get_state() is not Keyboard.DEVICE_CONNECTED:                                                                           #connection failed stop advertising
+                #connection failed stop advertising
+                if self.keyboard.get_state() is not Keyboard.DEVICE_CONNECTED:                                                                           
                     self.keyboard.stop_advertising()
-                    print("Connection Failed, trying again in 5 seconds")
-                    time.sleep(5)
+                    print("Connection Failed, trying again in 3 seconds")
+                    time.sleep(3)
 
-            elif self.keyboard.get_state() is Keyboard.DEVICE_CONNECTED:                        #NOTE change this to accept input from serial module
+            #NOTE change this to accept input from serial module
+            elif self.keyboard.get_state() is Keyboard.DEVICE_CONNECTED:                       
                 while self.keyboard.get_state() is Keyboard.DEVICE_CONNECTED:
                     print("Connection maintained")
                     time.sleep(1)
@@ -132,7 +140,7 @@ class BLE_MODULE:
                 print("Device Stopped, exiting...")
                 return
 
-    def send_char(self, char : str) -> None:                                                          #keycodes mentioned at https://www.usb.org/sites/default/files/hut1_7.pdf  (under Keyboard/Keypad Page)
+    def send_char(self, char : str) -> None:                                                          
         mod = 0
         code = 0
         if "A" <= char <= "Z":
@@ -143,18 +151,19 @@ class BLE_MODULE:
             print("not supported")
             return
 
-
+        #press the keys
         modi,code = KEYCODES[char]
         mod = mod | modi
-        self.keyboard.set_keys(code)                                                        #press the keys                                                             
-        self.keyboard.set_modifiers(left_control=1,left_alt=1)
+        self.keyboard.set_keys(code)                                                                                                                     
+        self.keyboard.set_modifiers(lctrl=1,lalt=1)
         self.keyboard.notify_hid_report()
-        time.sleep_ms(25)
-        
-        self.keyboard.set_keys()                                                            #release the keys                                                             
+        time.sleep_ms(25) # type: ignore
+
+        #release the keys 
+        self.keyboard.set_keys()                                                                                                                        
         self.keyboard.set_modifiers()
         self.keyboard.notify_hid_report()
-        time.sleep_ms(25)
+        time.sleep_ms(25) # type: ignore
 
 
 
@@ -166,5 +175,4 @@ class BLE_MODULE:
             
 
 
-obj = BLE_MODULE()
-obj.start()
+
