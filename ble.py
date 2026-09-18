@@ -75,12 +75,12 @@ KEYCODES = {
 }
 
 class BLE_MODULE:
-    def __init__(self):
+    def __init__(self,name="Keyboard",apperance=961):
         
         #my ble hid
-        self.keyboard = Keyboard("Keyboard")
+        self.keyboard = Keyboard(name)
         #961 = keyboard (org.bluetooth.characteristic.gap.appearance.xml)
-        self.keyboard.device_appearance = 961                                                   
+        self.keyboard.device_appearance = apperance                                             
 
         self.keyboard.set_bonding(False)
         self.keyboard.set_le_secure(False)
@@ -102,45 +102,38 @@ class BLE_MODULE:
         else: #Keyboard.DEVICE_STOPPED
             return
 
+    def isConnected(self):
+        return self.keyboard.get_state() is Keyboard.DEVICE_CONNECTED
 
-
-    def start(self):
-        while True:
-
+    def connect(self):
+        print("Establishing Connection...")
             #start ble advertisment  with timeout 30s
-            if self.keyboard.get_state() is Keyboard.DEVICE_IDLE:           
-                self.keyboard.start_advertising()                                               
-                timeout = 30                                                                         
-                while timeout > 0:
-                    state = self.keyboard.get_state()
+        if self.keyboard.get_state() is Keyboard.DEVICE_IDLE:           
+            self.keyboard.start_advertising()                                               
+            timeout = 30                                                                         
+            while timeout > 0:
+                state = self.keyboard.get_state()
 
-                    if state is Keyboard.DEVICE_CONNECTED:
-                        print("Device Connected")
-                        break
+                if state is Keyboard.DEVICE_CONNECTED:
+                    print("Device Connected")
+                    return 
 
-                    if state is not Keyboard.DEVICE_ADVERTISING:
-                        break
+                if state is not Keyboard.DEVICE_ADVERTISING:
+                    return
 
-                    time.sleep(1)
-                    timeout -= 1
+                time.sleep(1)
+                timeout -= 1
 
-                #connection failed stop advertising
-                if self.keyboard.get_state() is not Keyboard.DEVICE_CONNECTED:                                                                           
-                    self.keyboard.stop_advertising()
-                    print("Connection Failed, trying again in 3 seconds")
-                    time.sleep(3)
+            #timeout stop advertising
+            if self.keyboard.get_state() is not Keyboard.DEVICE_CONNECTED:                                                                           
+                self.keyboard.stop_advertising()
+                print("Connection Failed, try again")
 
-            #NOTE change this to accept input from serial module
-            elif self.keyboard.get_state() is Keyboard.DEVICE_CONNECTED:                       
-                while self.keyboard.get_state() is Keyboard.DEVICE_CONNECTED:
-                    print("Connection maintained")
-                    time.sleep(1)
-                    self.temp()
-            else:
-                print("Device Stopped, exiting...")
-                return
+        elif self.keyboard.get_state() is Keyboard.DEVICE_STOPPED:
+            print("Device Stopped")
 
-    def send_char(self, char : str) -> None:                                                          
+
+    def type_char(self, char : str) -> None:                                                          
         mod = 0
         code = 0
         if "A" <= char <= "Z":
@@ -155,7 +148,7 @@ class BLE_MODULE:
         modi,code = KEYCODES[char]
         mod = mod | modi
         self.keyboard.set_keys(code)                                                                                                                     
-        self.keyboard.set_modifiers(lctrl=1,lalt=1)
+        self.keyboard.set_modifiers(lshift=mod)
         self.keyboard.notify_hid_report()
         time.sleep_ms(25) # type: ignore
 
@@ -165,13 +158,16 @@ class BLE_MODULE:
         self.keyboard.notify_hid_report()
         time.sleep_ms(25) # type: ignore
 
+    def type_string(self,data):
+        for word in data.split():
+            for char in word:
+                self.type_char(char)
+            
 
-
-    def temp(self):
-        time.sleep(7)
-        test = "T"
-        for c in test:
-            self.send_char(c)
+    def recieve_data(self,data,modifiers):
+        self.keyboard.set_modifiers(**modifiers)
+        self.type_string(data)
+        
             
 
 

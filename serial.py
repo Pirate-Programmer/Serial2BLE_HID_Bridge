@@ -10,15 +10,33 @@ class SerialModule:
         self.poll.register(sys.stdin, uselect.POLLIN)
 
         self.data = None
-        self.modifiers  = {"rgui":0, "ralt":0, "rshift":0, "rctrl":0, "lgui":0, "lalt":0, "lt":0, "lctrl":0}
+        self.modifiers  = {"rgui":0, "ralt":0, "rshift":0, "rctrl":0, "lgui":0, "lalt":0, "lshift":0, "lctrl":0}
 
-        
-    def check_input(self):
-        
+
+    #poll stdin for data if yes then parse it    
+    def isDataAvailable(self) -> bool:
+        buffer = None
         if self.poll.poll(0):
-            self.data = sys.stdin.readline().strip().split("-t")
+            buffer = sys.stdin.readline().strip().split("-t")
+            buffer.append("")
+        #if data exists parse it
+        if buffer:
+            self.parseData(buffer)
+            return True
+        
+        return False
 
-        if self.data:
-            print(self.data)
-            self.data = None
+    def parseData(self,buffer):
+        self.data = buffer[0]
+        for s in buffer[1].strip().lower().split():
+            if s in self.modifiers:
+                self.modifiers[s] = 1
+
+    #reset data
+    def clear_data(self):
+        for key in self.modifiers:
+            self.modifiers[key] = 0
+
+            
+        
         

@@ -748,8 +748,8 @@ class Keyboard(HumanInterfaceDevice):
             #print("Notify with report: ", struct.unpack("8B", state))                                                  #uncomment if every notify report needs to be printined in sysin
 
     # Set the modifier bits, notify to send the modifiers to client.
-    def set_modifiers(self, rgui=0, ralt=0, rshift=0, rctrl=0, lguip=0, lalt=0, lshift=0, lctrl=0):
-        self.modifiers = (rgui << 7) + (ralt << 6) + (rshift << 5) + (rctrl << 4) + (lguip << 3) + (lalt << 2) + (lshift << 1) + lctrl
+    def set_modifiers(self, rgui=0, ralt=0, rshift=0, rctrl=0, lgui=0, lalt=0, lshift=0, lctrl=0):
+        self.modifiers = (rgui << 7) + (ralt << 6) + (rshift << 5) + (rctrl << 4) + (lgui << 3) + (lalt << 2) + (lshift << 1) + lctrl
 
     # Press keys, notify to send the keys to client.
     # This will hold down the keys, call set_keys() without arguments and notify again to release.
