@@ -10,11 +10,12 @@ class Controller():
         while True:
             if not self.bleClient.isConnected():
                 self.bleClient.connect()
+                #print("> ",end="")
 
             if self.serialClient.isDataAvailable():
                 self.bleClient.recieve_data(self.serialClient.data,self.serialClient.modifiers)
                 self.serialClient.clear_data()
-                print("> ",end="")
+                #print("> ",end="")
 
 
 

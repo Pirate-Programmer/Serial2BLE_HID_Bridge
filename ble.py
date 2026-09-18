@@ -108,29 +108,32 @@ class BLE_MODULE:
     def connect(self):
         print("Establishing Connection...")
             #start ble advertisment  with timeout 30s
-        if self.keyboard.get_state() is Keyboard.DEVICE_IDLE:           
-            self.keyboard.start_advertising()                                               
-            timeout = 30                                                                         
-            while timeout > 0:
-                state = self.keyboard.get_state()
+        while not self.isConnected():
+            if self.keyboard.get_state() is Keyboard.DEVICE_IDLE:           
+                self.keyboard.start_advertising()                                               
+                timeout = 30                                                                         
+                while timeout > 0:
+                    state = self.keyboard.get_state()
 
-                if state is Keyboard.DEVICE_CONNECTED:
-                    print("Device Connected")
-                    return 
+                    if state is Keyboard.DEVICE_CONNECTED:
+                        print("Device Connected")
+                        return 
 
-                if state is not Keyboard.DEVICE_ADVERTISING:
-                    return
+                    if state is not Keyboard.DEVICE_ADVERTISING:
+                        break
 
-                time.sleep(1)
-                timeout -= 1
+                    time.sleep(1)
+                    timeout -= 1
 
-            #timeout stop advertising
-            if self.keyboard.get_state() is not Keyboard.DEVICE_CONNECTED:                                                                           
-                self.keyboard.stop_advertising()
-                print("Connection Failed, try again")
+                #timeout stop advertising
+                if not self.isConnected():                                                                           
+                    self.keyboard.stop_advertising()
+                    print("Connection Failed, try again")
+                    time.sleep(2) #wait 2 seconds before trying again
 
-        elif self.keyboard.get_state() is Keyboard.DEVICE_STOPPED:
-            print("Device Stopped")
+            elif self.keyboard.get_state() is Keyboard.DEVICE_STOPPED:
+                print("Device Stopped")
+                return
 
 
     def type_char(self, char : str) -> None:                                                          
@@ -159,9 +162,8 @@ class BLE_MODULE:
         time.sleep_ms(25) # type: ignore
 
     def type_string(self,data):
-        for word in data.split():
-            for char in word:
-                self.type_char(char)
+        for char in data:
+            self.type_char(char)
             
 
     def recieve_data(self,data,modifiers):
