@@ -1,7 +1,7 @@
 from serial import SerialModule
 from ble import BLE_MODULE
 
-class Controller():
+class Bridge():
     def __init__(self) -> None:
         self.serialClient = SerialModule()
         self.bleClient = BLE_MODULE()
@@ -19,5 +19,5 @@ class Controller():
 
 
 
-obj = Controller()
+obj = Bridge()
 obj.main()

@@ -235,7 +235,7 @@ class HumanInterfaceDevice(object):
                 (UUID(0x2A24), F_READ),                                                                                 # 0x2A24 = Model number string, to be read by client.
                 (UUID(0x2A25), F_READ),                                                                                 # 0x2A25 = Serial number string, to be read by client.
                 (UUID(0x2A26), F_READ),                                                                                 # 0x2A26 = Firmware revision string, to be read by client.
-                (UUID(0x2A27), F_READ),                                                                                 # 0x2A27 = Hardware revision string, to be read by client.
+                (UUID(0x2A27), F_READ),                                                                                         # 0x2A27 = Hardware revision string, to be read by client.
                 (UUID(0x2A28), F_READ),                                                                                 # 0x2A28 = Software revision string, to be read by client.
                 (UUID(0x2A29), F_READ),                                                                                 # 0x2A29 = Manufacturer name string, to be read by client.
                 (UUID(0x2A50), F_READ),                                                                                 # 0x2A50 = PnP ID, to be read by client.
