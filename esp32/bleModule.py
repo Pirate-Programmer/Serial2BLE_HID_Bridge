@@ -74,7 +74,7 @@ KEYCODES = {
     "?":  (1, 0x38),  # Shift + /
 }
 
-class BLE_MODULE:
+class BleModule:
     def __init__(self,name="Keyboard",apperance=961):
         
         #my ble hid

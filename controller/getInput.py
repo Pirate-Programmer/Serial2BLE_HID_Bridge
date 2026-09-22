@@ -1,5 +1,5 @@
 from pynput import keyboard,mouse
-        
+import serial
 
 class KeyboardTracking():
     def on_press(self,key):
@@ -29,7 +29,7 @@ class MouseTracking():
 
 class Controller():
     def __init__(self,COM) -> None:
-        self.COM = COM
+        self.ser = serial.Serial()
         self.keyboard = KeyboardTracking()
         self.mouse = MouseTracking()
         self.keys = []
