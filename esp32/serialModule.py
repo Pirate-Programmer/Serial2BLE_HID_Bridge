@@ -1,5 +1,8 @@
 import sys
 import uselect # pyright: ignore[reportMissingImports]
+from collections import deque
+
+
 
 
 class SerialModule: 
@@ -9,33 +12,31 @@ class SerialModule:
         self.poll = uselect.poll()
         self.poll.register(sys.stdin, uselect.POLLIN)
 
-        self.data = None
-        self.modifiers  = {"rgui":0, "ralt":0, "rshift":0, "rctrl":0, "lgui":0, "lalt":0, "lshift":0, "lctrl":0}
+        self.MAX_QUEUE_LEN = 20
+        self.data = deque([], self.MAX_QUEUE_LEN)
+        #NOTE test this with diff keyboard cause cmd and menu is defo different for diff keyboards
+        self.modifiers  = {"cmd":0, "alt_gr":0, "shift_r":0, "ctrl_r":0, "menu":0, "alt_l":0, "shift":0, "ctrl_l":0}
 
 
     #poll stdin for data if yes then parse it    
     def isDataAvailable(self) -> bool:
         buffer = None
         if self.poll.poll(0):
-            buffer = sys.stdin.readline().strip().split("-t")
-            buffer.append("")
+            buffer = sys.stdin.read(1)
+
         #if data exists parse it
         if buffer:
-            self.parseData(buffer)
+            self.data.append(buffer)
             return True
         
         return False
 
     def parseData(self,buffer):
-        self.data = buffer[0]
-        for s in buffer[1].strip().lower().split():
-            if s in self.modifiers:
-                self.modifiers[s] = 1
+        pass
 
     #reset data
     def clear_data(self):
-        for key in self.modifiers:
-            self.modifiers[key] = 0
+        pass
 
             
         

@@ -745,7 +745,7 @@ class Keyboard(HumanInterfaceDevice):
             state = struct.pack("8B", self.modifiers, 0, self.keypresses[0], self.keypresses[1], self.keypresses[2], self.keypresses[3], self.keypresses[4], self.keypresses[5])
             self.characteristics[self.h_rep] = ("HID input report", state)
             self._ble.gatts_notify(self.conn_handle, self.h_rep, state)                                                 # Notify client by writing to the report handle.
-            #print("Notify with report: ", struct.unpack("8B", state))                                                  #uncomment if every notify report needs to be printined in sysin
+            #print("Notify with report: ", struct.unpack("8B", state))    do                                               #uncomment if every notify report needs to be printined in sysin
 
     # Set the modifier bits, notify to send the modifiers to client.
     def set_modifiers(self, rgui=0, ralt=0, rshift=0, rctrl=0, lgui=0, lalt=0, lshift=0, lctrl=0):

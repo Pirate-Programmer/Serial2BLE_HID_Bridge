@@ -153,13 +153,13 @@ class BleModule:
         self.keyboard.set_keys(code)                                                                                                                     
         self.keyboard.set_modifiers(lshift=mod)
         self.keyboard.notify_hid_report()
-        time.sleep_ms(25) # type: ignore
+        time.sleep_ms(15) # type: ignore
 
         #release the keys 
         self.keyboard.set_keys()                                                                                                                        
         self.keyboard.set_modifiers()
         self.keyboard.notify_hid_report()
-        time.sleep_ms(25) # type: ignore
+        time.sleep_ms(15) # type: ignore
 
     def type_string(self,data):
         for char in data:
