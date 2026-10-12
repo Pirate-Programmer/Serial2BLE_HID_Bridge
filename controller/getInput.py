@@ -4,7 +4,7 @@ from typing import override
 import serial
 import time
 
-
+#keycodes mentioned at https://www.usb.org/sites/default/files/hut1_7.pdf  (under Keyboard/Keypad Page)
 KEYCODES = {
     # Letters
     "a": 0x04, "b": 0x05, "c": 0x06,
@@ -138,7 +138,7 @@ class KeyboardTracking(Tracking):
         
         # return True ie input is processed by listener
         # return False ie input is not processed by listener
-        return not self.controller.suppress_state
+        return  self.controller.suppress_state
     
     def start(self):        
         self.listener = keyboard.Listener(on_press=self.on_press,on_release=self.on_release,suppress=False,win32_event_filter=self.win32_event_filter)

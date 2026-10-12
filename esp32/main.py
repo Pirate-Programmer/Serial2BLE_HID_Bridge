@@ -1,4 +1,5 @@
 import time
+import machine
 
 from serialModule import SerialModule
 from bleModule import BleModule
@@ -7,19 +8,20 @@ class Bridge():
     def __init__(self) -> None:
         self.serialClient = SerialModule()
         self.bleClient = BleModule()
+        self.led = machine.Pin(2,machine.Pin.out)
 
     def main(self):
         while True:
             if not self.bleClient.isConnected():
-                self.bleClient.connect()
-                #print("> ",end="")
+                self.led.on() #starting connection
+                self.bleClient.connect() #blocking event
+                self.led.off()
 
             if self.serialClient.isDataAvailable():
-                self.bleClient.recieve_data(self.serialClient.data,self.serialClient.modifiers)
+                self.bleClient.sendReport(self.serialClient.report)
                 self.serialClient.clear_data()
-                #print("> ",end="")
 
-            time.sleep_ms(10) # type: ignore
+            time.sleep_ms(20) # type: ignore
 
 obj = Bridge()
 obj.main()

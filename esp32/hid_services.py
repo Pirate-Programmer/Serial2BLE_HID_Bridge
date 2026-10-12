@@ -620,7 +620,7 @@ class HumanInterfaceDevice(object):
 
     # Notifies the client of the HID state.
     # Must be overwritten by subclass.
-    def notify_hid_report(self):
+    def notify_hid_report(self,report):
         return
 
 
@@ -739,22 +739,29 @@ class Keyboard(HumanInterfaceDevice):
         self.characteristics[h_proto] = ("HID protocol mode", b"\x01")                                                  # HID protocol mode: report.
 
     # Overwrite super to notify client of a hid report.
-    def notify_hid_report(self):
+    def notify_hid_report(self,report):
         if self.is_connected():
             # Pack the Keyboard state as described by the input report.
-            state = struct.pack("8B", self.modifiers, 0, self.keypresses[0], self.keypresses[1], self.keypresses[2], self.keypresses[3], self.keypresses[4], self.keypresses[5])
+
+            #NOTE following structure is changed from the original as Controller script getInput directly sends the report
+            #so instead of packing it here state is direclty set to report sent by user script
+
+            #state = struct.pack("8B", self.modifiers, 0, self.keypresses[0], self.keypresses[1], self.keypresses[2], self.keypresses[3], self.keypresses[4], self.keypresses[5])
+            state = report
             self.characteristics[self.h_rep] = ("HID input report", state)
-            self._ble.gatts_notify(self.conn_handle, self.h_rep, state)                                                 # Notify client by writing to the report handle.
+            self._ble.gatts_notify(self.conn_handle, self.h_rep, state)                                                    # Notify client by writing to the report handle.
             #print("Notify with report: ", struct.unpack("8B", state))    do                                               #uncomment if every notify report needs to be printined in sysin
 
-    # Set the modifier bits, notify to send the modifiers to client.
-    def set_modifiers(self, rgui=0, ralt=0, rshift=0, rctrl=0, lgui=0, lalt=0, lshift=0, lctrl=0):
-        self.modifiers = (rgui << 7) + (ralt << 6) + (rshift << 5) + (rctrl << 4) + (lgui << 3) + (lalt << 2) + (lshift << 1) + lctrl
+    #NOTE remove this section if the above changes work
+    # # Set the modifier bits, notify to send the modifiers to client.
+    # def set_modifiers(self, rgui=0, ralt=0, rshift=0, rctrl=0, lgui=0, lalt=0, lshift=0, lctrl=0):
+    #     self.modifiers = (rgui << 7) + (ralt << 6) + (rshift << 5) + (rctrl << 4) + (lgui << 3) + (lalt << 2) + (lshift << 1) + lctrl
 
-    # Press keys, notify to send the keys to client.
-    # This will hold down the keys, call set_keys() without arguments and notify again to release.
-    def set_keys(self, k0=0x00, k1=0x00, k2=0x00, k3=0x00, k4=0x00, k5=0x00):
-        self.keypresses = [k0, k1, k2, k3, k4, k5]
+    # # Press keys, notify to send the keys to client.
+    # # This will hold down the keys, call set_keys() without arguments and notify again to release.
+    # def set_keys(self, k0=0x00, k1=0x00, k2=0x00, k3=0x00, k4=0x00, k5=0x00):
+    #     self.keypresses = [k0, k1, k2, k3, k4, k5]
+
 
     # Set a callback function that gets notified on keyboard changes.
     # Should take a tuple with the report bytes.
