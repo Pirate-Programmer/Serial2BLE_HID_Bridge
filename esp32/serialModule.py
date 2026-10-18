@@ -1,33 +1,37 @@
 import sys
-import uselect # pyright: ignore[reportMissingImports]
+import uselect # type: ignore
+import micropython # type: ignore
 
-class SerialModule: 
+class SerialModule:
+    FRAME_LEN = {0x01: 9, 0x02: 5} #Keyboard or mouse header len
+
     def __init__(self):
-
-        #polling object that is gonna check if data avabile to be read at stdin
+        #micropython.kbd_intr(-1)      # stop 0x03 bytes from raising KeyboardInterrupt
         self.poll = uselect.poll()
         self.poll.register(sys.stdin, uselect.POLLIN)
-
-        #report will be received from the controller script
+        self.buff = bytearray()
         self.report = None
-        
-    #poll stdin for data if yes then parse it    
-    def isDataAvailable(self) -> bool:
-        if self.poll.poll(0):
-            self.report = sys.stdin.read(8)
 
-        if self.report:
-            return True
-        
+    def isDataAvailable(self) -> bool:
+        # drain whatever has arrived
+        while self.poll.poll(0):
+            b = sys.stdin.buffer.read(1)
+            if not b:
+                break
+            self.buff += b
+
+        # extract one complete frame, resyncing on bad headers
+        while self.buff:
+            need = self.FRAME_LEN.get(self.buff[0])
+            if need is None:
+                self.buff = self.buff[1:]        # junk byte, drop it
+                continue
+            if len(self.buff) >= need:
+                self.report = bytes(self.buff[:need])
+                self.buff = self.buff[need:]
+                return True
+            break                                 # incomplete, wait for more
         return False
 
-    def parseData(self,buffer):
-        pass
-
-    #reset data
     def clear_data(self):
         self.report = None
-
-            
-        
-        

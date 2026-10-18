@@ -15,10 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from micropython import const
+from micropython import const # type: ignore
 import struct
-import bluetooth
-from bluetooth import UUID
+import bluetooth # type: ignore
+from bluetooth import UUID # type: ignore
 from hid_keystores import JSONKeyStore
 
 F_READ = bluetooth.FLAG_READ
@@ -171,12 +171,14 @@ class Advertiser:
     def start_advertising(self):
         if not self.advertising:
             self._ble.gap_advertise(100000, adv_data=self._payload)
+            self.advertising = True
             print("Started advertising")
 
     # Stop advertising by setting interval of 0.
     def stop_advertising(self):
         if self.advertising:
             self._ble.gap_advertise(0, adv_data=self._payload)
+            self.advertising = False
             print("Stopped advertising")
 
 # Class that represents a general HID device services.
@@ -274,7 +276,8 @@ class HumanInterfaceDevice(object):
     # Interrupt request callback function.
     def ble_irq(self, event, data):
         if event == _IRQ_CENTRAL_CONNECT:                                                                               # Central connected.
-            self.conn_handle, _, _ = data                                                                               # Save the handle. HIDS specification only allow one central to be connected.
+            self.conn_handle, _, _ = data
+            self.adv.advertising = False                                                                            # type: ignore # Save the handle. HIDS specification only allow one central to be connected.
             self.set_state(HumanInterfaceDevice.DEVICE_CONNECTED)                                                       # Set the device state to connected.
             print("Central connected:", self.conn_handle)
         elif event == _IRQ_CENTRAL_DISCONNECT:                                                                          # Central disconnected.
@@ -432,7 +435,7 @@ class HumanInterfaceDevice(object):
     def stop(self):
         if self.device_state is not HumanInterfaceDevice.DEVICE_STOPPED:
             if self.device_state is HumanInterfaceDevice.DEVICE_ADVERTISING:
-                self.adv.stop_advertising()
+                self.adv.stop_advertising() # type: ignore
 
             if self.conn_handle is not None:
                 self._ble.gap_disconnect(self.conn_handle)
@@ -487,13 +490,13 @@ class HumanInterfaceDevice(object):
     # Begin advertising the device services.
     def start_advertising(self):
         if self.device_state is not HumanInterfaceDevice.DEVICE_STOPPED and self.device_state is not HumanInterfaceDevice.DEVICE_ADVERTISING:
-            self.adv.start_advertising()
+            self.adv.start_advertising() # type: ignore
             self.set_state(HumanInterfaceDevice.DEVICE_ADVERTISING)
 
     # Stop advertising the device services.
     def stop_advertising(self):
         if self.device_state is not HumanInterfaceDevice.DEVICE_STOPPED:
-            self.adv.stop_advertising()
+            self.adv.stop_advertising() # type: ignore
             if self.device_state is not HumanInterfaceDevice.DEVICE_CONNECTED:
                 self.set_state(HumanInterfaceDevice.DEVICE_IDLE)
 
@@ -702,9 +705,9 @@ class Keyboard(HumanInterfaceDevice):
             if attr_handle == self.h_repout:
                 print("Keyboard changed by client")
                 report = self._ble.gatts_read(attr_handle)                                                              # Read the report.
-                bytes = struct.unpack("B", report)                                                                      # Unpack the report.
+                byte_data = struct.unpack("B", report)                                                                      # Unpack the report.
                 if self.kb_callback is not None:                                                                        # Call the callback function.
-                    self.kb_callback(bytes)
+                    self.kb_callback(byte_data)
                 return _GATTS_NO_ERROR
 
         return super(Keyboard, self).ble_irq(event, data)                                                               # Let super handle the event.
@@ -767,3 +770,227 @@ class Keyboard(HumanInterfaceDevice):
     # Should take a tuple with the report bytes.
     def set_kb_callback(self, kb_callback):
         self.kb_callback = kb_callback
+        
+
+
+# Class that represents the Mouse service.
+class Mouse(HumanInterfaceDevice):
+    # fmt: off
+    HID_INPUT_REPORT = [                                                                                       # Report Description: describes what we communicate.
+        0x05, 0x01,                                                                                                 # USAGE_PAGE (Generic Desktop)
+        0x09, 0x02,                                                                                                 # USAGE (Mouse)
+        0xa1, 0x01,                                                                                                 # COLLECTION (Application)
+        0x85, 0x02,                                                                                                 #   REPORT_ID (2)
+        0x09, 0x01,                                                                                                 #   USAGE (Pointer)
+        0xa1, 0x00,                                                                                                 #   COLLECTION (Physical)
+        0x05, 0x09,                                                                                                 #         Usage Page (Buttons)
+        0x19, 0x01,                                                                                                 #         Usage Minimum (1)
+        0x29, 0x05,                                                                                                 #         Usage Maximum (5)
+        0x15, 0x00,                                                                                                 #         Logical Minimum (0)
+        0x25, 0x01,                                                                                                 #         Logical Maximum (1)
+        0x95, 0x05,                                                                                                 #         Report Count (5)
+        0x75, 0x01,                                                                                                 #         Report Size (1)
+        0x81, 0x02,                                                                                                 #         Input(Data, Variable, Absolute); 3 button bits
+        0x95, 0x01,                                                                                                 #         Report Count(1)
+        0x75, 0x03,                                                                                                 #         Report Size(3)
+        0x81, 0x03,                                                                                                 #         Input(Constant);                 5 bit padding
+        0x05, 0x01,                                                                                                 #         Usage Page (Generic Desktop)
+        0x09, 0x30,                                                                                                 #         Usage (X)
+        0x09, 0x31,                                                                                                 #         Usage (Y)
+        0x09, 0x38,                                                                                                 #         Usage (Wheel)
+        0x15, 0x81,                                                                                                 #         Logical Minimum (-127)
+        0x25, 0x7F,                                                                                                 #         Logical Maximum (127)
+        0x75, 0x08,                                                                                                 #         Report Size (8)
+        0x95, 0x03,                                                                                                 #         Report Count (3)
+        0x81, 0x06,                                                                                                 #         Input(Data, Variable, Relative); 3 position bytes (X,Y,Wheel)
+        0xc0,                                                                                                       #   END_COLLECTION
+        0xc0                                                                                                        # END_COLLECTION
+    ]
+    def __init__(self, name="Bluetooth Mouse"):
+        super(Mouse, self).__init__(name)                                                                               # Set up the general HID services in super.
+        self.device_appearance = 962                                                                                    # Device appearance ID, 962 = mouse.
+
+        self.HIDS = (                                                                                                   # Service description: describes the service and how we communicate.
+            UUID(0x1812),                                                                                               # 0x1812 = Human Interface Device.
+            (
+                (UUID(0x2A4A), F_READ),                                                                                 # 0x2A4A = HID information, to be read by client.
+                (UUID(0x2A4B), F_READ),                                                                                 # 0x2A4B = HID report map, to be read by client.
+                (UUID(0x2A4C), F_READ_WRITE_NORESPONSE),                                                                # 0x2A4C = HID control point, to be written by client.
+                (UUID(0x2A4D), F_READ_NOTIFY, (                                                                         # 0x2A4D = HID report, to be read by client after notification.
+                    (UUID(0x2908), DSC_F_READ),                                                                         # 0x2908 = HID reference, to be read by client.
+                )),
+                (UUID(0x2A4E), F_READ_WRITE_NORESPONSE),                                                                # 0x2A4E = HID protocol mode, to be written & read by client.
+            ),
+        )
+
+        # fmt: on
+
+        # Define the initial mouse state.
+        self.x = 0
+        self.y = 0
+        self.w = 0
+
+        self.button1 = 0
+        self.button2 = 0
+        self.button3 = 0
+
+        self.services.append(self.HIDS)                                                                                 # Append to list of service descriptions.
+
+    # Overwrite super to register HID specific service.
+    def start(self):
+        super(Mouse, self).start()                                                                                      # Call super to register DIS and BAS services.
+
+        print("Registering services")
+        handles = self._ble.gatts_register_services(self.services)                                                      # Register services and get read/write handles for all services.
+        self.save_service_characteristics(handles)                                                                      # Save the values for the characteristics.
+        self.write_service_characteristics()                                                                            # Write the values for the characteristics.
+        self.adv = Advertiser(self._ble, [UUID(0x1812)], self.device_appearance, self.device_name)                      # Create an Advertiser. Only advertise the top level service, i.e., the HIDS.
+
+        print("Server started")
+
+    # Overwrite super to save HID specific characteristics.
+    def save_service_characteristics(self, handles):
+        super(Mouse, self).save_service_characteristics(handles)                                                        # Call super to write DIS and BAS characteristics.
+
+        (h_info, h_hid, h_ctrl, self.h_rep, h_d1, h_proto) = handles[3]                                                 # Get the handles for the HIDS characteristics. These correspond directly to self.HIDS. Position 3 because of the order of self.services.
+
+        b = self.button1 + self.button2 * 2 + self.button3 * 4
+        state = struct.pack("Bbbb", b, self.x, self.y, self.w)                                                          # Pack the initial mouse state as described by the input report.
+
+        print("Saving HID service characteristics")
+        self.characteristics[h_info] = ("HID information", b"\x01\x01\x00\x00")                                         # HID info: ver=1.1, country=0, flags=000000cw with c=normally connectable w=wake up signal
+        self.characteristics[h_hid] = ("HID input report map", bytes(self.HID_INPUT_REPORT))                            # HID input report map.
+        self.characteristics[h_ctrl] = ("HID control point", b"\x00")                                                   # HID control point.
+        self.characteristics[self.h_rep] = ("HID report", state)                                                        # HID report.
+        self.characteristics[h_d1] = ("HID reference", struct.pack("<BB", 1, 1))                                        # HID reference: id=1, type=input.
+        self.characteristics[h_proto] = ("HID protocol mode", b"\x01")                                                  # HID protocol mode: report.
+
+    # Overwrite super to notify client of a hid report
+    def notify_hid_report(self,report):
+        if self.is_connected():
+            b = self.button1 + self.button2 * 2 + self.button3
+            state = struct.pack("Bbbb", b, self.x, self.y, self.w)                                                      # Pack the mouse state as described by the input report.
+            self.characteristics[self.h_rep] = ("HID report", state)
+            self._ble.gatts_notify(self.conn_handle, self.h_rep, state)                                                 # Notify client by writing to the report handle.
+            print("Notify with report: ", struct.unpack("Bbbb", state))
+
+    # Set the mouse axes values.
+    def set_axes(self, x=0, y=0):
+        if x > 127:
+            x = 127
+        elif x < -127:
+            x = -127
+
+        if y > 127:
+            y = 127
+        elif y < -127:
+            y = -127
+
+        self.x = x
+        self.y = y
+
+    # Set the mouse scroll wheel value.
+    def set_wheel(self, w=0):
+        if w > 127:
+            w = 127
+        elif w < -127:
+            w = -127
+
+        self.w = w
+
+    # Set the mouse button values.
+    def set_buttons(self, b1=0, b2=0, b3=0):
+        self.button1 = b1
+        self.button2 = b2
+        self.button3 = b3
+
+
+
+# representing keyboard and mouse in a collection
+# keyboard report id: 1
+# mouse report id: 2
+class MyHID(Keyboard):
+    def __init__(self, name="Bluetooth KBM"):
+        super().__init__(name)
+
+        self.HID_INPUT_REPORT += Mouse.HID_INPUT_REPORT
+
+
+        self.HIDS = (
+        UUID(0x1812),
+        (
+            (UUID(0x2A4A), F_READ),
+            (UUID(0x2A4B), F_READ),
+            (UUID(0x2A4C), F_READ_WRITE_NORESPONSE),
+
+            # Keyboard input — Report ID 1
+            (UUID(0x2A4D), F_READ_NOTIFY, (
+                (UUID(0x2908), DSC_F_READ),
+            )),
+
+            # Keyboard output — Report ID 1
+            (UUID(0x2A4D), F_READ_WRITE_NOTIFY_NORESPONSE, (
+                (UUID(0x2908), DSC_F_READ),
+            )),
+
+            # Mouse input — Report ID 2 (NEW)
+            (UUID(0x2A4D), F_READ_NOTIFY, (
+                (UUID(0x2908), DSC_F_READ),
+            )),
+
+            (UUID(0x2A4E), F_READ_WRITE_NORESPONSE),
+        ),
+    )
+
+        self.services[-1] = self.HIDS
+
+
+    def save_service_characteristics(self, handles):
+        HumanInterfaceDevice.save_service_characteristics(self, handles)
+
+        (
+            h_info,
+            h_hid,
+            h_ctrl,
+            self.h_rep,
+            h_kb_ref,
+            self.h_repout,
+            h_kb_out_ref,
+            self.h_mouse_rep,
+            h_mouse_ref,
+            h_proto,
+        ) = handles[3]
+
+        self.characteristics[h_info] = ("HID information", b"\x01\x01\x00\x00")
+        self.characteristics[h_hid] = ("HID report map", bytes(self.HID_INPUT_REPORT))
+        self.characteristics[h_ctrl] = ("HID control point", b"\x00")
+
+        self.characteristics[self.h_rep] = ("Keyboard input report", bytes(8))
+        self.characteristics[h_kb_ref] = ("Keyboard input reference", bytes((1, 1)))
+
+        self.characteristics[self.h_repout] = ("Keyboard output report", bytes(1))
+        self.characteristics[h_kb_out_ref] = ("Keyboard output reference", bytes((1, 2)))
+
+        self.characteristics[self.h_mouse_rep] = ("Mouse input report", bytes(4))
+        self.characteristics[h_mouse_ref] = ("Mouse input reference", bytes((2, 1)))
+
+        self.characteristics[h_proto] = ("HID protocol mode", b"\x01")
+
+
+    def notify_mouse_report(self, report):
+        if not self.is_connected():
+            return
+
+        report = bytes(report)
+
+        if len(report) != 4:
+            print("Invalid mouse report length:", len(report))
+            return
+
+        self.characteristics[self.h_mouse_rep] = ("Mouse input report", report)
+
+        self._ble.gatts_notify(
+            self.conn_handle,
+            self.h_mouse_rep,
+            report
+        )

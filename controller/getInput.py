@@ -1,8 +1,10 @@
 from pynput import keyboard,mouse
 from pynput.keyboard import KeyCode,Key
+from pynput.mouse import Button
 from typing import override
 import serial
 import time
+import threading
 
 #keycodes mentioned at https://www.usb.org/sites/default/files/hut1_7.pdf  (under Keyboard/Keypad Page)
 KEYCODES = {
@@ -81,6 +83,14 @@ MODIFIERS = {
 }
 
 
+MOUSE_BUTTONS = {
+    Button.left:   0x01,  # Bit 0
+    Button.right:  0x02,  # Bit 1
+    Button.middle: 0x04,  # Bit 2
+    Button.x1:     0x08,  # Bit 3
+    Button.x2:     0x10,  # Bit 4
+}
+
 class Tracking:
     Pressed = 257
     Released = 260
@@ -92,7 +102,7 @@ class Tracking:
     def win32_event_filter(self,msg,data):
         # return True ie input is processed
         # return False ie input is not processed
-        return not self.controller.suppress_state
+        return self.controller.suppress_state
 
      
 class KeyboardTracking(Tracking):
@@ -114,7 +124,7 @@ class KeyboardTracking(Tracking):
             if char in KEYCODES:
                 self.con.keycode = KEYCODES[char.lower()]
 
-        self.con.send_report(self.con.create_hid_report())
+        self.con.send_report(self.con.create_keyboard_hid_report())
 
     def on_release(self,key):
         print(str(key))
@@ -122,7 +132,7 @@ class KeyboardTracking(Tracking):
             self.con.modifier &= ~MODIFIERS[key]
         else:
             self.con.keycode = 0
-        self.con.send_report(self.con.create_hid_report())
+        self.con.send_report(self.con.create_keyboard_hid_report())
     
     # Values for MSLLHOOKSTRUCT.vkCode and kdbllhookstruct can be found here:
     # https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
@@ -144,71 +154,157 @@ class KeyboardTracking(Tracking):
         self.listener = keyboard.Listener(on_press=self.on_press,on_release=self.on_release,suppress=False,win32_event_filter=self.win32_event_filter)
         self.listener.start()
 
+    def stop(self):
+        self.listener.stop()
 
 class MouseTracking(Tracking):
 
     def __init__(self, controller: Controller) -> None:
         super().__init__(controller)
+        self.buttons = 0
+        self.prev_x = None
+        self.prev_y = None
+        self.acc_dx = self.acc_dy = 0
 
-    def on_move(self,x,y):
-        #print((x,y))
-        pass
+
+    def on_move(self, x, y):
+        if self.prev_x is None:
+            self.prev_x, self.prev_y = x, y
+            return
+        self.acc_dx += x - self.prev_x
+        self.acc_dy += y - self.prev_y
+        self.prev_x, self.prev_y = x, y
+
+    def _pump(self):
+        while self.controller.running:
+            time.sleep(0.01)
+            dx = max(-127, min(127, int(self.acc_dx)))
+            dy = max(-127, min(127, int(self.acc_dy)))
+            self.acc_dx -= dx
+            self.acc_dy -= dy
+            if dx or dy:
+                self.controller.send_report(
+                    self.controller.create_mouse_hid_report(self.buttons, dx, dy))
+    
     def on_click(self,x,y,button,pressed):
         #print((x,y), button, pressed)
-        pass
+        mask = MOUSE_BUTTONS.get(button,0)
+        if not mask:
+            return
+
+        if pressed: 
+            self.buttons |= mask     # sets the bit
+        else:
+            self.buttons &= ~mask   # clears the bit
+
+        self.controller.send_report(self.controller.create_mouse_hid_report(buttons=self.buttons))
 
     def on_scroll(self,x,y,dx,dy):
         #print((x,y), (dx,dy))
-        pass
+        if dy:
+            self.controller.send_report(self.controller.create_mouse_hid_report(buttons=self.buttons,wheel=dy))
 
     def start(self):
+        threading.Thread(target=self._pump, daemon=True).start()
         self.listener = mouse.Listener(on_move=self.on_move,on_click=self.on_click,on_scroll=self.on_scroll,suppress=False,win32_event_filter=self.win32_event_filter)
         self.listener.start()
     
+    def stop(self):
+        self.listener.stop()
+
 
 class Controller():
+    KEYBOARD_HEADER = 0x01
+    MOUSE_HEADER = 0x02
     def __init__(self,port="COM4",baudrate=115200) -> None:
-        self.ser = serial.Serial(port=port,baudrate=baudrate,timeout=0)
+        #Initialize serial communication
+        self.ser = serial.Serial()
+        self.ser.port = port
+        self.ser.baudrate = baudrate
+        self.ser.timeout = 0
+        self.ser.dtr = False
+        self.ser.rts = False
+        self.ser.open()
+
         self.keyboard = KeyboardTracking(self)
         self.mouse = MouseTracking(self)
         self.suppress_state = False #Intial State
+        self.running = True #controller state
         self.modifier = 0
         self.keycode = 0
-        
+
+        self.lock = threading.Lock()
+
     def start(self):
         self.keyboard.start()
         self.mouse.start()
+
+    #release all the keys, close serial communication and stop the listeners
+    def stop(self):
+        self.running = False
+        self.keyboard.stop()
+        self.mouse.stop()
+
+        self.ser.write(bytes([1]) + bytes(8))   # release keys
+        self.ser.write(bytes([2]) + bytes(4))   # release mouse
+        self.ser.close() 
+        
 
     def toggle(self):
         self.suppress_state = not self.suppress_state
         self.keyboard.listener._suppress = self.suppress_state
 
         #NOTE This will block the OS from access mouse events on toggle, for testing purpose keep it commented
-        #self.mouse.listener._suppress = self.suppress_state 
-    def create_hid_report(self,modifier=None,keycode=None) -> bytes:
+        self.mouse.listener._suppress = self.suppress_state 
+        
+    def create_keyboard_hid_report(self,modifier=None,keycode=None) -> bytes:
         if keycode is None:
             keycode = self.keycode
         if modifier is None:
             modifier = self.modifier
-
-        return bytes([
+        
+        return bytes([Controller.KEYBOARD_HEADER]) + bytes(
+            [
             modifier,                          # Modifier byte
-            0x00,                                   # reserved
+            0x00,                              # reserved
             keycode,                           # key slot 1
-            0x00,0x00,0x00,0x00,0x00                # remaining 5 key slots
+            0x00,0x00,0x00,0x00,0x00           # remaining 5 key slots
             ])
 
-    def send_report(self,report):
-        self.ser.write(report)
 
+
+    def create_mouse_hid_report(self,buttons,dx=0,dy=0,wheel=0):
+        dx = max(-127,min(127,dx))
+        dy = max(-127,min(127,dy))
+        wheel = max(-127,min(127,wheel))
+        
+        
+        return bytes([Controller.MOUSE_HEADER]) + bytes(
+            [
+                buttons & 0x1F,               # Mouse button state
+                dx & 0xFF,                    # relative x coord
+                dy & 0xFF,                    # relative y coord
+                wheel & 0xFF                  # relative scroll ie in y direction
+            ])
+
+    def send_report(self, report: bytes):
+        with self.lock:
+            self.ser.write(report)
     
 
 #NOTE change this, make it so that it gets the port right, maybe user input 
 if __name__ == "__main__":
     obj = Controller("COM4")
-    obj.start()
-    while True:
-        time.sleep(1)
+    try:
+        obj.start()
+        threading.Event().wait() #preventing main theard from exiting
+
+    except KeyboardInterrupt:
+        print("Stopping controller...")
+
+    finally:
+        obj.stop()
+        print("Controller stopped exiting...")
 
 
     

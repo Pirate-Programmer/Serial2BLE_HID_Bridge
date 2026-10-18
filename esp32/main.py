@@ -1,14 +1,15 @@
 import time
-import machine
+import machine # type: ignore
 
 from serialModule import SerialModule
 from bleModule import BleModule
+
 
 class Bridge():
     def __init__(self) -> None:
         self.serialClient = SerialModule()
         self.bleClient = BleModule()
-        self.led = machine.Pin(2,machine.Pin.out)
+        self.led = machine.Pin(2,machine.Pin.OUT)
 
     def main(self):
         while True:
@@ -21,7 +22,9 @@ class Bridge():
                 self.bleClient.sendReport(self.serialClient.report)
                 self.serialClient.clear_data()
 
-            time.sleep_ms(20) # type: ignore
+            
+            time.sleep_ms(5) # type: ignore
+            
 
 obj = Bridge()
 obj.main()
